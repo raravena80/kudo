@@ -67,12 +67,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 	inPredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-
 			old := e.ObjectOld.(*kudov1alpha1.Instance)
 			new := e.ObjectNew.(*kudov1alpha1.Instance)
 
-			// Haven't done anything yet
+			// FIXME: reading the status here feels very wrong, and so does the fact
+			// that this predicate funcion has side effects. We could probably move
+			// all this logic to the reconciler if we stored the parameters in the
+			// `PlanExecution`.
 			if new.Status.ActivePlan.Name == "" {
+				// Haven't done anything yet.
 				err = createPlan(mgr, "deploy", new)
 				if err != nil {
 					log.Printf("InstanceController: Error creating \"%v\" object for \"%v\": %v", "deploy", new.Name, err)
@@ -80,7 +83,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 				return true
 			}
 
-			// Get the new FrameworkVersion object
+			// Get the FrameworkVersion that corresponds to the new instance.
 			fv := &kudov1alpha1.FrameworkVersion{}
 			err = mgr.GetClient().Get(context.TODO(),
 				types.NamespacedName{
@@ -97,7 +100,8 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 				// since its linking to a bad FV.
 				return false
 			}
-			// Identify plan to be executed by this change
+
+			// Identify plan to be executed by this change.
 			var planName string
 			var ok bool
 			if old.Spec.FrameworkVersion != new.Spec.FrameworkVersion {
@@ -121,7 +125,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 				}
 			} else if !reflect.DeepEqual(old.Spec, new.Spec) {
 				for k := range parameterDifference(old.Spec.Parameters, new.Spec.Parameters) {
-					// Find the right parameter in the FV
+					// Find the spec of the updated parameter.
 					for _, param := range fv.Spec.Parameters {
 						if param.Name == k {
 							planName = param.Trigger
@@ -164,7 +168,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 					if current.Status.State == kudov1alpha1.PhaseStateComplete {
 						log.Println("InstanceController: Current Plan for Instance is already done, won't change the Suspend flag.")
 					} else {
-						log.Println("InstanceController: Setting PlanExecution to Suspend")
+						log.Println("InstanceController: Suspending the PlanExecution")
 						t := true
 						current.Spec.Suspend = &t
 						did, err := controllerutil.CreateOrUpdate(context.TODO(), mgr.GetClient(), current, func(o runtime.Object) error {
@@ -173,20 +177,20 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 							return nil
 						})
 						if err != nil {
-							log.Printf("InstanceController: Error changing the current PlanExecution to Suspend: %v", err)
+							log.Printf("InstanceController: Error suspending PlanExecution: %v", err)
 						} else {
-							log.Printf("InstanceController: No error in setting PlanExecution.Suspend to true. Returned %v", did)
+							log.Printf("InstanceController: Successfully suspended PlanExecution. Returned: %v", did)
 						}
 					}
 				}
 
 				err = createPlan(mgr, planName, new)
 				if err != nil {
-					log.Printf("InstanceController: Error creating \"%v\" object for \"%v\": %v", planName, new.Name, err)
+					log.Printf("InstanceController: Error creating PlanExecution \"%v\" for instance \"%v\": %v", planName, new.Name, err)
 				}
 			}
 
-			// See if there's a current plan being run, if so "cancel" the plan run
+			// See if there's a current plan being run, if so "cancel" the plan run.
 			return e.ObjectOld != e.ObjectNew
 		},
 		// New Instances should have Deploy called
