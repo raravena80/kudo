@@ -103,61 +103,68 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 			// Identify plan to be executed by this change.
 			var planName string
-			var ok bool
+			var planFound bool
 			if old.Spec.FrameworkVersion != new.Spec.FrameworkVersion {
-				// Its an Upgrade!
-				_, ok = fv.Spec.Plans["upgrade"]
-				if !ok {
-					_, ok = fv.Spec.Plans["update"]
-					if !ok {
-						_, ok = fv.Spec.Plans["deploy"]
-						if !ok {
-							log.Println("InstanceController: Could not find any plan to use for upgrade")
-							return false
-						}
-						ok = true // TODO: Do we need this here?
-						planName = "deploy"
-					} else {
-						planName = "update"
+				// Its an upgrade!
+				names := []string{"upgrade", "update", "deploy"}
+				for _, n := range names {
+					if _, planFound = fv.Spec.Plans[n]; planFound {
+						planName = n
+						break
 					}
-				} else {
-					planName = "upgrade"
+				}
+				if !planFound {
+					log.Printf("InstanceController: Could not find any plan to use to upgrade instance %v", new.Name)
+					return false
 				}
 			} else if !reflect.DeepEqual(old.Spec, new.Spec) {
 				for k := range parameterDifference(old.Spec.Parameters, new.Spec.Parameters) {
 					// Find the spec of the updated parameter.
+					paramFound := false
 					for _, param := range fv.Spec.Parameters {
 						if param.Name == k {
-							planName = param.Trigger
-							ok = true
+							paramFound = true
+
+							if param.Trigger != "" {
+								planName = param.Trigger
+								planFound = true
+							}
+							// TODO: what should we do if more than one parameter was updated?
 						}
 					}
-					if !ok {
-						log.Printf("InstanceController: Instance %v updated parameter %v, but parameter not found in FrameworkVersion %v\n", new.Name, k, fv.Name)
-					} else if planName == "" {
-						_, ok = fv.Spec.Plans["update"]
-						if !ok {
-							_, ok = fv.Spec.Plans["deploy"]
-							if !ok {
-								log.Println("InstanceController: Could not find any plan to use for update")
-							} else {
-								planName = "deploy"
+
+					if paramFound {
+						if !planFound {
+							// The parameter doesn't have a trigger, try to find the corresponding default plan.
+							names := []string{"update", "deploy"}
+							for _, n := range names {
+								if _, planFound = fv.Spec.Plans[n]; planFound {
+									planName = n
+									planFound = true
+									break
+								}
 							}
-						} else {
-							planName = "update"
+
+							if planFound {
+								// FIXME: this can be misleading, the plan will only be used if this is the last parameter returned by `parameterDifference`.
+								log.Printf("InstanceController: Instance %v updated parameter %v, but it is not associated to a trigger. Using default plan %v\n", new.Name, k, planName)
+							}
 						}
-						log.Printf("InstanceController: Instance %v updated parameter %v, but no specified trigger.  Using default plan %v\n", new.Name, k, planName)
+
+						if !planFound {
+							log.Printf("InstanceController: Could not find any plan to use to update instance %v", new.Name)
+						}
+					} else {
+						log.Printf("InstanceController: Instance %v updated parameter %v, but parameter not found in frameworkversion %v\n", new.Name, k, fv.Name)
 					}
 				}
 				// Not currently doing anything for Dependency changes.
 			} else {
 				log.Println("InstanceController: Old and new spec matched...")
-				planName = "deploy"
 			}
-			log.Printf("InstanceController: Going to call plan \"%v\"", planName)
 
-			// we found something
-			if ok {
+			if planFound {
+				log.Printf("InstanceController: Going to call plan \"%v\"", planName)
 
 				// Mark the current plan as Suspend
 				current := &kudov1alpha1.PlanExecution{}
