@@ -222,10 +222,10 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 				return false
 			}
 
-			err = createPlan(mgr, planName, instance)
-			if err != nil {
+			if err = createPlan(mgr, planName, instance); err != nil {
 				log.Printf("InstanceController: Error creating \"%v\" object for \"%v\": %v", planName, instance.Name, err)
 			}
+
 			return err == nil
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
