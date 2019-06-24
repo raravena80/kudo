@@ -176,9 +176,9 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 					log.Printf("InstanceController: Ignoring error when getting plan for new instance: %v", err)
 				} else {
 					if current.Status.State == kudov1alpha1.PhaseStateComplete {
-						log.Println("InstanceController: Current Plan for Instance is already done, won't change the Suspend flag.")
+						log.Printf("InstanceController: Current Plan for instance %v is already done, won't change the Suspend flag.", new.Name)
 					} else {
-						log.Println("InstanceController: Suspending the PlanExecution")
+						log.Printf("InstanceController: Suspending the PlanExecution for instance %v", new.Name)
 						t := true
 						current.Spec.Suspend = &t
 						did, err := controllerutil.CreateOrUpdate(context.TODO(), mgr.GetClient(), current, func(o runtime.Object) error {
@@ -187,9 +187,9 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 							return nil
 						})
 						if err != nil {
-							log.Printf("InstanceController: Error suspending PlanExecution: %v", err)
+							log.Printf("InstanceController: Error suspending PlanExecution for instance %v: %v", new.Name, err)
 						} else {
-							log.Printf("InstanceController: Successfully suspended PlanExecution. Returned: %v", did)
+							log.Printf("InstanceController: Successfully suspended PlanExecution for instance %v. Returned: %v", new.Name, did)
 						}
 					}
 				}
