@@ -120,6 +120,8 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 			} else if !reflect.DeepEqual(old.Spec, new.Spec) {
 				for k := range parameterDifference(old.Spec.Parameters, new.Spec.Parameters) {
 					// Find the spec of the updated parameter.
+					//
+					// TODO: what should we do if more than one parameter was updated?
 					paramFound := false
 					for _, param := range fv.Spec.Parameters {
 						if param.Name == k {
@@ -129,7 +131,8 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 								planName = param.Trigger
 								planFound = true
 							}
-							// TODO: what should we do if more than one parameter was updated?
+
+							break
 						}
 					}
 
