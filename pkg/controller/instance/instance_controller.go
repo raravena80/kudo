@@ -97,7 +97,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 					new.Name,
 					err)
 				// TODO: We probably want to handle this differently and mark this instance as unhealthy
-				// since its linking to a bad FV.
+				// since it's linking to a bad FV.
 				return false
 			}
 
@@ -105,7 +105,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 			var planName string
 			var planFound bool
 			if old.Spec.FrameworkVersion != new.Spec.FrameworkVersion {
-				// Its an upgrade!
+				// It's an upgrade!
 				names := []string{"upgrade", "update", "deploy"}
 				for _, n := range names {
 					if _, planFound = fv.Spec.Plans[n]; planFound {
@@ -222,7 +222,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 					instance.Name,
 					err)
 				// TODO: We probably want to handle this differently and mark this instance as unhealthy
-				// since its linking to a bad FV.
+				// since it's linking to a bad FV.
 				return false
 			}
 			planName := "deploy"
